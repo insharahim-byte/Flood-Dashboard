@@ -54,7 +54,7 @@ with col4:
     st.metric("Max Depth", f"{filtered_df['Depth'].max():.1f} m")
 
 # ================== MAIN MAP ==================
-st.subheader("🗺️ Flood Impact Map with Sindh Boundary")
+st.subheader("🗺️ Flood Map")
 
 fig = go.Figure()
 
@@ -68,9 +68,10 @@ if sindh_geo and show_boundary:
                 lon=lon,
                 lat=lat,
                 mode='lines',
-                line=dict(color='black', width=2),
+                line=dict(color='black', width=1.5),
                 name='Sindh Boundary',
-                showlegend=False
+                showlegend=False,
+                hoverinfo='none'
             ))
         elif feature['geometry']['type'] == 'MultiPolygon':
             for polygon in feature['geometry']['coordinates']:
@@ -80,7 +81,7 @@ if sindh_geo and show_boundary:
                     lon=lon,
                     lat=lat,
                     mode='lines',
-                    line=dict(color='black', width=2),
+                    line=dict(color='black', width=1.5),
                     name='Sindh Boundary',
                     showlegend=False,
                     hoverinfo='none'
@@ -95,7 +96,7 @@ fig.add_trace(go.Scattergeo(
     marker=dict(
         size=filtered_df['Extent'] / 8,
         color=filtered_df['Depth'],
-        colorscale='Reds',
+        colorscale=[[0, 'lightblue'], [0.25, 'yellow'], [0.5, 'orange'], [0.75, 'red'], [1, 'darkred']],
         showscale=True,
         colorbar=dict(
             title="Depth (m)",
@@ -111,15 +112,11 @@ fig.add_trace(go.Scattergeo(
         cmax=4
     ),
     textposition="top center",
-    textfont=dict(size=10, color='black', family='Arial Black'),
+    textfont=dict(size=10, color='black', family='Arial'),
     hoverinfo='text',
     hovertext=[
-        f"<b>{d}</b><br>" +
-        f"Extent: {e:.0f} km²<br>" +
-        f"Depth: {dp:.1f} m"
-        for d, e, dp in zip(filtered_df['District'], 
-                           filtered_df['Extent'], 
-                           filtered_df['Depth'])
+        f"<b>{d}</b><br>Extent: {e:.0f} km²<br>Depth: {dp:.1f} m"
+        for d, e, dp in zip(filtered_df['District'], filtered_df['Extent'], filtered_df['Depth'])
     ]
 ))
 
@@ -138,9 +135,8 @@ fig.update_layout(
         lataxis_range=[24, 29],
         projection_scale=6
     ),
-    height=650,
-    margin=dict(l=0, r=50, t=30, b=0),
-    title=dict(text="Sindh Province - Flood Affected Areas", x=0.5)
+    height=600,
+    margin=dict(l=0, r=50, t=0, b=0)
 )
 
 st.plotly_chart(fig, use_container_width=True)
@@ -162,7 +158,7 @@ with col1:
         text='Extent'
     )
     fig_extent.update_traces(texttemplate='%{text:.0f}', textposition='outside')
-    fig_extent.update_layout(height=400, xaxis_title="Square Kilometers", yaxis_title="")
+    fig_extent.update_layout(height=400, xaxis_title="Square Kilometers", yaxis_title="", showlegend=False)
     st.plotly_chart(fig_extent, use_container_width=True)
 
 with col2:
@@ -177,7 +173,7 @@ with col2:
         text='Depth'
     )
     fig_depth.update_traces(texttemplate='%{text:.1f}', textposition='outside')
-    fig_depth.update_layout(height=400, xaxis_title="Meters", yaxis_title="")
+    fig_depth.update_layout(height=400, xaxis_title="Meters", yaxis_title="", showlegend=False)
     st.plotly_chart(fig_depth, use_container_width=True)
 
 # ================== DATA TABLE ==================
@@ -249,22 +245,3 @@ st.download_button(
     file_name="sindh_flood_data.csv",
     mime="text/csv"
 )
-
-# ================== BOUNDARY VERIFICATION ==================
-with st.expander("🗺️ View Sindh Boundary Only"):
-    if sindh_geo:
-        fig2 = px.choropleth_mapbox(
-            geojson=sindh_geo,
-            locations=["Sindh"],
-            featureidkey="properties.name",
-            color=[1],
-            mapbox_style="carto-positron",
-            center={"lat": 26.5, "lon": 68.5},
-            zoom=5,
-            opacity=0.3
-        )
-        fig2.update_layout(height=400, margin=dict(l=0, r=0, t=0, b=0))
-        st.plotly_chart(fig2, use_container_width=True)
-        st.caption("Sindh provincial boundary for reference")
-    else:
-        st.error("Boundary file not available")
