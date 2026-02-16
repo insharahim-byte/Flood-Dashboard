@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import os
+import sys  # <-- Moved import to the top
 
 st.set_page_config(page_title="Sindh Flood Dashboard", layout="wide")
 
@@ -93,4 +94,4 @@ with st.expander("🔧 Debug Info"):
     st.write("Data folder exists:", os.path.exists(DATA_FOLDER))
     if os.path.exists(DATA_FOLDER):
         st.write("Files in data folder:", os.listdir(DATA_FOLDER))
-    st.write("Python version:", import sys; sys.version)
+    st.write("Python version:", sys.version)  # <-- Fixed this line
