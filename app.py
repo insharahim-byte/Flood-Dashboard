@@ -12,11 +12,11 @@ st.markdown("District-wise flood extent and depth analysis")
 
 # ================== LOAD SINDH BOUNDARY ==================
 try:
-    with open("Sindh.geojson") as f:
+    with open("sindh dist.geojson") as f:
         sindh_geo = json.load(f)
     st.sidebar.success("✅ Sindh boundary loaded")
 except:
-    st.sidebar.error("❌ Sindh.geojson not found")
+    st.sidebar.error("❌ sindh dist.geojson not found")
     sindh_geo = None
 
 # ================== DISTRICT DATA ==================
@@ -148,7 +148,7 @@ fig.update_layout(
     margin=dict(l=0, r=70, t=0, b=0)
 )
 
-st.plotly_chart(fig, width='stretch')
+st.plotly_chart(fig, use_container_width=True)
 
 # ================== DEPTH LEGEND ==================
 st.subheader("💧 Depth Legend")
@@ -171,8 +171,7 @@ depth_df['Risk'] = depth_df['Depth'].apply(lambda x:
     '🔴 EXTREME' if x >= 3 else 
     '🟠 SEVERE' if x >= 2 else 
     '🟡 HIGH' if x >= 1 else 
-    '🟢 MODERATE' if x >= 0.5 else 
-    '⚪ LOW')
+    '🟢 MODERATE')
 
 col_table1, col_table2 = st.columns([2, 1])
 
@@ -185,7 +184,7 @@ with col_table1:
             "Risk": "Risk Level"
         },
         hide_index=True,
-        width='stretch'
+        use_container_width=True
     )
 
 with col_table2:
@@ -206,7 +205,7 @@ fig_extent = px.bar(
 )
 fig_extent.update_traces(texttemplate='%{text:.0f} km²', textposition='outside')
 fig_extent.update_layout(height=400, xaxis_title="Square Kilometers", yaxis_title="")
-st.plotly_chart(fig_extent, width='stretch')
+st.plotly_chart(fig_extent, use_container_width=True)
 
 # ================== SUMMARY TABLE ==================
 st.subheader("📋 Complete District Summary")
@@ -235,7 +234,7 @@ st.dataframe(
         "Risk Level": "Flood Risk"
     },
     hide_index=True,
-    width='stretch'
+    use_container_width=True
 )
 
 # ================== DOWNLOAD ==================
