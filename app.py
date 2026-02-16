@@ -15,20 +15,11 @@ try:
     with open("Sindh.geojson") as f:
         sindh_geo = json.load(f)
     st.sidebar.success("✅ Sindh boundary loaded")
-    
-    # Extract district names from GeoJSON for debugging
-    geojson_districts = []
-    for feature in sindh_geo['features']:
-        if 'properties' in feature and 'name' in feature['properties']:
-            geojson_districts.append(feature['properties']['name'])
-    st.sidebar.write("Districts in GeoJSON:", sorted(geojson_districts)[:5], "...")
-    
 except:
     st.sidebar.error("❌ Sindh.geojson not found")
     sindh_geo = None
 
 # ================== DISTRICT DATA ==================
-# Using actual Sindh district names
 districts_data = {
     "District": ["Karachi", "Hyderabad", "Sukkur", "Larkana", "Dadu", 
                  "Jacobabad", "Shikarpur", "Khairpur", "Nawabshah", 
@@ -67,7 +58,7 @@ st.subheader("🗺️ Flood Map")
 
 fig = go.Figure()
 
-# Add Sindh boundary if available (just the outline, no labels)
+# Add Sindh boundary
 if sindh_geo and show_boundary:
     for feature in sindh_geo['features']:
         if feature['geometry']['type'] == 'Polygon':
@@ -96,27 +87,33 @@ if sindh_geo and show_boundary:
                     hoverinfo='none'
                 ))
 
-# Add flood bubbles - ONLY our districts, no GeoJSON labels
+# Add flood bubbles with CLEAR depth indication
 fig.add_trace(go.Scattergeo(
     lon=filtered_df['Lon'],
     lat=filtered_df['Lat'],
-    text=filtered_df['District'],  # Our district names only
+    text=filtered_df['District'],
     mode='markers+text',
     marker=dict(
-        size=filtered_df['Extent'] / 8,
+        size=filtered_df['Extent'] / 6,  # Bigger bubbles
         color=filtered_df['Depth'],
-        colorscale='Reds',
+        colorscale=[
+            [0, 'lightblue'],      # Low
+            [0.25, 'yellow'],       # Moderate
+            [0.5, 'orange'],        # High
+            [0.75, 'red'],          # Severe
+            [1, 'darkred']           # Extreme
+        ],
         showscale=True,
         colorbar=dict(
             title="Depth (m)",
             x=1.05,
-            len=0.5,
+            len=0.6,
             tickvals=[0, 1, 2, 3, 4],
-            ticktext=['Low', 'Moderate', 'High', 'Severe', 'Extreme']
+            ticktext=['0m - Low', '1m', '2m', '3m', '4m+ Extreme']
         ),
         line=dict(width=1, color='black'),
         sizemode='area',
-        sizeref=2.*max(filtered_df['Extent'])/(40.**2),
+        sizeref=2.*max(filtered_df['Extent'])/(50.**2),
         cmin=0,
         cmax=4
     ),
@@ -124,7 +121,10 @@ fig.add_trace(go.Scattergeo(
     textfont=dict(size=11, color='black', family='Arial Black'),
     hoverinfo='text',
     hovertext=[
-        f"<b>{d}</b><br>Extent: {e:.0f} km²<br>Depth: {dp:.1f} m"
+        f"<b>{d}</b><br>" +
+        f"📍 Extent: {e:.0f} km²<br>" +
+        f"💧 Depth: {dp:.1f} m<br>" +
+        f"⚡ Risk: {'EXTREME' if dp>=3 else 'SEVERE' if dp>=2 else 'HIGH' if dp>=1 else 'MODERATE' if dp>=0.5 else 'LOW'}"
         for d, e, dp in zip(filtered_df['District'], filtered_df['Extent'], filtered_df['Depth'])
     ]
 ))
@@ -144,86 +144,105 @@ fig.update_layout(
         lataxis_range=[24, 29],
         projection_scale=6
     ),
-    height=600,
-    margin=dict(l=0, r=50, t=0, b=0)
+    height=650,
+    margin=dict(l=0, r=70, t=0, b=0)
 )
 
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, width='stretch')
 
-# ================== EXTENT & DEPTH CHARTS ==================
-st.subheader("📊 Flood Analysis by District")
+# ================== DEPTH LEGEND ==================
+st.subheader("💧 Depth Legend")
+depth_cols = st.columns(5)
+with depth_cols[0]:
+    st.markdown("🟦 **0-1m** Low")
+with depth_cols[1]:
+    st.markdown("🟨 **1-2m** Moderate")
+with depth_cols[2]:
+    st.markdown("🟧 **2-3m** High")
+with depth_cols[3]:
+    st.markdown("🟥 **3-4m** Severe")
+with depth_cols[4]:
+    st.markdown("⬛ **4m+** Extreme")
 
-col1, col2 = st.columns(2)
+# ================== DEPTH TABLE ==================
+st.subheader("📊 Depth by District")
+depth_df = filtered_df[['District', 'Depth']].sort_values('Depth', ascending=False)
+depth_df['Risk'] = depth_df['Depth'].apply(lambda x: 
+    '🔴 EXTREME' if x >= 3 else 
+    '🟠 SEVERE' if x >= 2 else 
+    '🟡 HIGH' if x >= 1 else 
+    '🟢 MODERATE' if x >= 0.5 else 
+    '⚪ LOW')
 
-with col1:
-    fig_extent = px.bar(
-        filtered_df.sort_values('Extent'),
-        y='District',
-        x='Extent',
-        orientation='h',
-        title="Flood Extent (km²)",
-        color='Extent',
-        color_continuous_scale='Reds',
-        text='Extent'
+col_table1, col_table2 = st.columns([2, 1])
+
+with col_table1:
+    st.dataframe(
+        depth_df,
+        column_config={
+            "District": "District",
+            "Depth": st.column_config.NumberColumn("Depth (m)", format="%.1f m"),
+            "Risk": "Risk Level"
+        },
+        hide_index=True,
+        width='stretch'
     )
-    fig_extent.update_traces(texttemplate='%{text:.0f}', textposition='outside')
-    fig_extent.update_layout(height=400, xaxis_title="Square Kilometers", yaxis_title="")
-    st.plotly_chart(fig_extent, use_container_width=True)
 
-with col2:
-    fig_depth = px.bar(
-        filtered_df.sort_values('Depth'),
-        y='District',
-        x='Depth',
-        orientation='h',
-        title="Flood Depth (meters)",
-        color='Depth',
-        color_continuous_scale='Blues',
-        text='Depth'
-    )
-    fig_depth.update_traces(texttemplate='%{text:.1f}', textposition='outside')
-    fig_depth.update_layout(height=400, xaxis_title="Meters", yaxis_title="")
-    st.plotly_chart(fig_depth, use_container_width=True)
+with col_table2:
+    st.metric("Average Depth", f"{filtered_df['Depth'].mean():.2f} m")
+    st.metric("Deepest District", filtered_df.loc[filtered_df['Depth'].idxmax(), 'District'])
 
-# ================== DATA TABLE ==================
-st.subheader("📋 District Summary")
+# ================== EXTENT CHART ==================
+st.subheader("📊 Extent by District")
+fig_extent = px.bar(
+    filtered_df.sort_values('Extent', ascending=True),
+    y='District',
+    x='Extent',
+    orientation='h',
+    title="Flood Extent (km²)",
+    color='Extent',
+    color_continuous_scale='Reds',
+    text='Extent'
+)
+fig_extent.update_traces(texttemplate='%{text:.0f} km²', textposition='outside')
+fig_extent.update_layout(height=400, xaxis_title="Square Kilometers", yaxis_title="")
+st.plotly_chart(fig_extent, width='stretch')
 
-display_df = filtered_df[['District', 'Extent', 'Depth']].copy()
-display_df.columns = ['District', 'Extent (km²)', 'Depth (m)']
-display_df = display_df.sort_values('Extent (km²)', ascending=False)
+# ================== SUMMARY TABLE ==================
+st.subheader("📋 Complete District Summary")
+summary_df = filtered_df[['District', 'Extent', 'Depth']].copy()
+summary_df.columns = ['District', 'Extent (km²)', 'Depth (m)']
+summary_df = summary_df.sort_values('Depth (m)', ascending=False)
 
 def get_severity(depth):
     if depth >= 3.0:
-        return "🔴 SEVERE"
+        return "🔴 EXTREME"
     elif depth >= 2.0:
-        return "🟠 HIGH"
+        return "🟠 SEVERE"
     elif depth >= 1.0:
-        return "🟡 MODERATE"
+        return "🟡 HIGH"
     else:
-        return "🟢 LOW"
+        return "🟢 MODERATE"
 
-display_df['Risk Level'] = display_df['Depth (m)'].apply(get_severity)
+summary_df['Risk Level'] = summary_df['Depth (m)'].apply(get_severity)
 
 st.dataframe(
-    display_df,
+    summary_df,
     column_config={
         "District": "District",
         "Extent (km²)": st.column_config.NumberColumn(format="%.0f km²"),
         "Depth (m)": st.column_config.NumberColumn(format="%.1f m"),
         "Risk Level": "Flood Risk"
     },
-    use_container_width=True,
-    hide_index=True
+    hide_index=True,
+    width='stretch'
 )
 
-# ================== DEBUG SECTION ==================
-with st.expander("🔧 Debug Info"):
-    st.write("**Our District Data:**")
-    st.write(sorted(df['District'].tolist()))
-    if sindh_geo:
-        st.write("**GeoJSON District Names (first 10):**")
-        geo_names = []
-        for feature in sindh_geo['features']:
-            if 'properties' in feature and 'name' in feature['properties']:
-                geo_names.append(feature['properties']['name'])
-        st.write(sorted(geo_names)[:10])
+# ================== DOWNLOAD ==================
+csv = summary_df.to_csv(index=False)
+st.download_button(
+    label="📥 Download Data",
+    data=csv,
+    file_name="sindh_flood_data.csv",
+    mime="text/csv"
+)
