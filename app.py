@@ -4,69 +4,104 @@ import numpy as np
 import folium
 from streamlit_folium import st_folium
 import plotly.express as px
+import pandas as pd
+import os
 
+# =========================
+# PAGE CONFIG
+# =========================
 st.set_page_config(page_title="Sindh Flood Dashboard", layout="wide")
 
 st.title("🌊 Sindh Flood Dashboard (Sentinel-1)")
-st.write("Small project dashboard using flood maps exported from Google Earth Engine")
+st.write("Interactive dashboard using flood maps exported from Google Earth Engine")
 
+# =========================
+# DATA FILES
+# =========================
 RASTER_FILES = {
     "July 2022": "data/flood_2022-07-01.tif",
     "August 2022": "data/flood_2022-08-01.tif",
     "September 2022": "data/flood_2022-09-01.tif"
 }
 
+# =========================
+# FUNCTIONS
+# =========================
 @st.cache_data
 def load_raster(path):
     with rasterio.open(path) as src:
-        # 🔽 READ AT LOWER RESOLUTION (important)
-        arr = src.read(
-            1,
-            out_shape=(1, src.height // 4, src.width // 4)
-        )
+        array = src.read(1)
         bounds = src.bounds
-    return arr, bounds
+    return array, bounds
 
+def compute_flood_pixels(array):
+    masked = np.where(array == 0, np.nan, array)
+    return masked, np.nansum(masked)
+
+# =========================
+# SIDEBAR
+# =========================
 st.sidebar.header("🗓 Select Month")
-month = st.sidebar.selectbox("Flood Map:", list(RASTER_FILES.keys()))
+selected_month = st.sidebar.selectbox("Flood Map", list(RASTER_FILES.keys()))
 
-try:
-    arr, bounds = load_raster(RASTER_FILES[month])
-except Exception as e:
-    st.error(f"Failed to load raster: {e}")
+# =========================
+# CHECK FILE EXISTS
+# =========================
+raster_path = RASTER_FILES[selected_month]
+
+if not os.path.exists(raster_path):
+    st.error(f"❌ File not found: {raster_path}")
     st.stop()
 
-arr = np.where(arr == 0, np.nan, arr)
-flood_pixels = np.nansum(arr)
+# =========================
+# LOAD DATA
+# =========================
+raster, bounds = load_raster(raster_path)
+raster, flood_pixels = compute_flood_pixels(raster)
 
-m = folium.Map(location=[25.5, 69], zoom_start=6, tiles="CartoDB positron")
+# =========================
+# MAP
+# =========================
+map_center = [25.5, 69]
+m = folium.Map(location=map_center, zoom_start=6, tiles="CartoDB positron")
 
 folium.raster_layers.ImageOverlay(
-    image=arr,
+    image=raster,
     bounds=[[bounds.bottom, bounds.left], [bounds.top, bounds.right]],
     opacity=0.6,
 ).add_to(m)
 
+folium.LayerControl().add_to(m)
+
+# =========================
+# TIME SERIES
+# =========================
 months = []
 areas = []
 
-for k, v in RASTER_FILES.items():
-    try:
-        a, _ = load_raster(v)
-        a = np.where(a == 0, np.nan, a)
-        months.append(k)
-        areas.append(np.nansum(a))
-    except:
-        pass
+for month, path in RASTER_FILES.items():
+    if os.path.exists(path):
+        arr, _ = load_raster(path)
+        arr, area = compute_flood_pixels(arr)
+        months.append(month)
+        areas.append(area)
+
+df = pd.DataFrame({
+    "Month": months,
+    "Flood Pixels": areas
+})
 
 fig = px.line(
-    x=months,
-    y=areas,
+    df,
+    x="Month",
+    y="Flood Pixels",
     markers=True,
-    labels={"x": "Month", "y": "Flood Pixels"},
     title="Flood Extent Over Time"
 )
 
+# =========================
+# LAYOUT
+# =========================
 col1, col2 = st.columns(2)
 
 with col1:
