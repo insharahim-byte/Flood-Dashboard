@@ -8,43 +8,38 @@ import plotly.express as px
 st.set_page_config(page_title="Sindh Flood Dashboard", layout="wide")
 
 st.title("🌊 Sindh Flood Dashboard (Sentinel-1)")
-st.write("Flood maps derived from Google Earth Engine (demo project)")
+st.write("Small project dashboard using flood maps exported from Google Earth Engine")
 
-# -------------------
-# FILES
-# -------------------
 RASTER_FILES = {
     "July 2022": "data/flood_2022-07-01.tif",
     "August 2022": "data/flood_2022-08-01.tif",
     "September 2022": "data/flood_2022-09-01.tif"
 }
 
-# -------------------
-# LOAD RASTER (cached)
-# -------------------
 @st.cache_data
 def load_raster(path):
     with rasterio.open(path) as src:
-        arr = src.read(1)
+        # 🔽 READ AT LOWER RESOLUTION (important)
+        arr = src.read(
+            1,
+            out_shape=(1, src.height // 4, src.width // 4)
+        )
         bounds = src.bounds
     return arr, bounds
 
-# -------------------
-# SIDEBAR
-# -------------------
-month = st.sidebar.selectbox("Select Month", list(RASTER_FILES.keys()))
+st.sidebar.header("🗓 Select Month")
+month = st.sidebar.selectbox("Flood Map:", list(RASTER_FILES.keys()))
 
-# -------------------
-# LOAD SELECTED MAP ONLY
-# -------------------
-arr, bounds = load_raster(RASTER_FILES[month])
+try:
+    arr, bounds = load_raster(RASTER_FILES[month])
+except Exception as e:
+    st.error(f"Failed to load raster: {e}")
+    st.stop()
+
 arr = np.where(arr == 0, np.nan, arr)
-flood_pixels = int(np.nansum(arr))
+flood_pixels = np.nansum(arr)
 
-# -------------------
-# MAP
-# -------------------
-m = folium.Map(location=[26, 69], zoom_start=6, tiles="CartoDB positron")
+m = folium.Map(location=[25.5, 69], zoom_start=6, tiles="CartoDB positron")
 
 folium.raster_layers.ImageOverlay(
     image=arr,
@@ -52,21 +47,17 @@ folium.raster_layers.ImageOverlay(
     opacity=0.6,
 ).add_to(m)
 
-# -------------------
-# TIME SERIES (safe)
-# -------------------
-@st.cache_data
-def compute_timeseries(files):
-    months = []
-    areas = []
-    for k, v in files.items():
+months = []
+areas = []
+
+for k, v in RASTER_FILES.items():
+    try:
         a, _ = load_raster(v)
         a = np.where(a == 0, np.nan, a)
         months.append(k)
         areas.append(np.nansum(a))
-    return months, areas
-
-months, areas = compute_timeseries(RASTER_FILES)
+    except:
+        pass
 
 fig = px.line(
     x=months,
@@ -76,9 +67,6 @@ fig = px.line(
     title="Flood Extent Over Time"
 )
 
-# -------------------
-# LAYOUT
-# -------------------
 col1, col2 = st.columns(2)
 
 with col1:
@@ -88,6 +76,6 @@ with col1:
 with col2:
     st.subheader("📈 Flood Trend")
     st.plotly_chart(fig, use_container_width=True)
-    st.metric("Flooded Pixels", flood_pixels)
+    st.metric("Flooded Pixels", int(flood_pixels))
 
-st.caption("Sentinel-1 Flood Classification | Demo Project")
+st.caption("Data: Sentinel-1 Flood Classification | Project Demo")
