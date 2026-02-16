@@ -17,9 +17,9 @@ st.write("Interactive dashboard using flood maps exported from Google Earth Engi
 # DATA FILES
 # =========================
 RASTER_FILES = {
-    "July 2022": "data/flood_2022_07.tif",
-    "August 2022": "data/flood_2022_08.tif",
-    "September 2022": "data/flood_2022_09.tif"
+    "July 2022": "data/flood_2022-07-01.tif",
+    "August 2022": "data/flood_2022-08-01.tif",
+    "September 2022": "data/flood_2022-09-01.tif"
 }
 
 # =========================
