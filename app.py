@@ -1,234 +1,205 @@
 import streamlit as st
-import numpy as np
 import pandas as pd
+import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
 
-# Page config
-st.set_page_config(page_title="Sindh Flood Depth", layout="wide")
+st.set_page_config(page_title="Sindh Flood Analysis", layout="wide")
 
-# Title
-st.title("🌊 Sindh Flood Depth Map")
-st.markdown("District-wise flood depth visualization")
+st.title("🌊 Sindh Flood Monitoring")
+st.markdown("District-wise flood extent and depth analysis")
 
-# ================== DISTRICT DATA WITH BOUNDARIES ==================
-# Each district has approximate boundary coordinates
-district_boundaries = {
-    "Karachi": {
-        "lat": [24.7, 25.1, 25.1, 24.7, 24.7],
-        "lon": [66.8, 66.8, 67.3, 67.3, 66.8],
-        "depth": 2.5,
-        "center": [24.86, 67.01]
-    },
-    "Hyderabad": {
-        "lat": [25.2, 25.6, 25.6, 25.2, 25.2],
-        "lon": [68.1, 68.1, 68.6, 68.6, 68.1],
-        "depth": 1.8,
-        "center": [25.38, 68.37]
-    },
-    "Sukkur": {
-        "lat": [27.5, 27.9, 27.9, 27.5, 27.5],
-        "lon": [68.6, 68.6, 69.1, 69.1, 68.6],
-        "depth": 3.2,
-        "center": [27.70, 68.87]
-    },
-    "Larkana": {
-        "lat": [27.4, 27.8, 27.8, 27.4, 27.4],
-        "lon": [68.0, 68.0, 68.5, 68.5, 68.0],
-        "depth": 1.2,
-        "center": [27.56, 68.21]
-    },
-    "Dadu": {
-        "lat": [26.5, 26.9, 26.9, 26.5, 26.5],
-        "lon": [67.5, 67.5, 68.0, 68.0, 67.5],
-        "depth": 4.0,
-        "center": [26.73, 67.78]
-    },
-    "Jacobabad": {
-        "lat": [28.1, 28.5, 28.5, 28.1, 28.1],
-        "lon": [68.2, 68.2, 68.7, 68.7, 68.2],
-        "depth": 0.8,
-        "center": [28.28, 68.44]
-    },
-    "Shikarpur": {
-        "lat": [27.8, 28.2, 28.2, 27.8, 27.8],
-        "lon": [68.4, 68.4, 68.9, 68.9, 68.4],
-        "depth": 1.5,
-        "center": [27.96, 68.65]
-    },
-    "Khairpur": {
-        "lat": [27.3, 27.7, 27.7, 27.3, 27.3],
-        "lon": [68.5, 68.5, 69.0, 69.0, 68.5],
-        "depth": 1.1,
-        "center": [27.53, 68.76]
-    },
-    "Nawabshah": {
-        "lat": [26.0, 26.4, 26.4, 26.0, 26.0],
-        "lon": [68.2, 68.2, 68.7, 68.7, 68.2],
-        "depth": 2.8,
-        "center": [26.24, 68.41]
-    },
-    "Mirpurkhas": {
-        "lat": [25.3, 25.7, 25.7, 25.3, 25.3],
-        "lon": [68.8, 68.8, 69.3, 69.3, 68.8],
-        "depth": 1.6,
-        "center": [25.53, 69.02]
-    },
-    "Umerkot": {
-        "lat": [25.2, 25.6, 25.6, 25.2, 25.2],
-        "lon": [69.5, 69.5, 70.0, 70.0, 69.5],
-        "depth": 0.9,
-        "center": [25.36, 69.74]
-    },
-    "Tharparkar": {
-        "lat": [24.7, 25.1, 25.1, 24.7, 24.7],
-        "lon": [70.0, 70.0, 70.5, 70.5, 70.0],
-        "depth": 0.5,
-        "center": [24.89, 70.20]
-    },
-    "Badin": {
-        "lat": [24.4, 24.8, 24.8, 24.4, 24.4],
-        "lon": [68.6, 68.6, 69.1, 69.1, 68.6],
-        "depth": 3.5,
-        "center": [24.66, 68.84]
-    },
-    "Thatta": {
-        "lat": [24.5, 24.9, 24.9, 24.5, 24.5],
-        "lon": [67.7, 67.7, 68.2, 68.2, 67.7],
-        "depth": 2.2,
-        "center": [24.75, 67.92]
-    },
-    "Jamshoro": {
-        "lat": [25.2, 25.6, 25.6, 25.2, 25.2],
-        "lon": [68.0, 68.0, 68.5, 68.5, 68.0],
-        "depth": 1.4,
-        "center": [25.43, 68.28]
-    }
+# ================== DISTRICT DATA ==================
+districts_data = {
+    "District": ["Karachi", "Hyderabad", "Sukkur", "Larkana", "Dadu", 
+                 "Jacobabad", "Shikarpur", "Khairpur", "Nawabshah", 
+                 "Mirpurkhas", "Umerkot", "Tharparkar", "Badin", "Thatta", "Jamshoro"],
+    "Latitude": [24.86, 25.38, 27.70, 27.56, 26.73, 28.28, 27.96, 27.53, 
+                 26.24, 25.53, 25.36, 24.89, 24.66, 24.75, 25.43],
+    "Longitude": [67.01, 68.37, 68.87, 68.21, 67.78, 68.44, 68.65, 68.76, 
+                  68.41, 69.02, 69.74, 70.20, 68.84, 67.92, 68.28],
+    "Extent_km2": [450, 380, 520, 290, 610, 180, 320, 275, 490, 340, 210, 150, 580, 420, 310],
+    "Depth_m": [2.5, 1.8, 3.2, 1.2, 4.0, 0.8, 1.5, 1.1, 2.8, 1.6, 0.9, 0.5, 3.5, 2.2, 1.4]
 }
 
-# Convert to DataFrame for easy access
-df = pd.DataFrame([
-    {"District": name, "depth": data["depth"], 
-     "lat": data["center"][0], "lon": data["center"][1]}
-    for name, data in district_boundaries.items()
-])
+df = pd.DataFrame(districts_data)
 
-# ================== SIDEBAR ==================
-st.sidebar.header("Options")
-color_scale = st.sidebar.selectbox(
-    "Color Scale",
-    ["YlOrRd", "Reds", "OrRd", "Hot", "Viridis", "Plasma", "RdYlBu_r"]
+# ================== SIDEBAR CONTROLS ==================
+st.sidebar.header("Filters")
+
+# Color selector
+color_var = st.sidebar.radio(
+    "Color Map By:",
+    ["Depth_m", "Extent_km2"],
+    format_func=lambda x: "Flood Depth (m)" if x == "Depth_m" else "Flood Extent (km²)"
 )
-show_labels = st.sidebar.checkbox("Show District Labels", True)
+
+# Size selector
+size_var = st.sidebar.radio(
+    "Size Points By:",
+    ["Extent_km2", "Depth_m"],
+    format_func=lambda x: "Flood Extent (km²)" if x == "Extent_km2" else "Flood Depth (m)"
+)
+
+# Filter sliders
+min_extent = st.sidebar.slider("Min Extent (km²)", 0, 700, 0)
+min_depth = st.sidebar.slider("Min Depth (m)", 0.0, 5.0, 0.0)
+
+# Filter data
+filtered_df = df[(df['Extent_km2'] >= min_extent) & (df['Depth_m'] >= min_depth)]
 
 # ================== METRICS ==================
-col1, col2, col3 = st.columns(3)
+col1, col2, col3, col4 = st.columns(4)
 with col1:
-    st.metric("Max Depth", f"{df['depth'].max():.1f} m")
+    st.metric("Total Districts", len(df))
 with col2:
-    st.metric("Most Affected", df.loc[df['depth'].idxmax(), 'District'])
+    st.metric("Affected Districts", len(filtered_df))
 with col3:
-    st.metric("Districts", len(df))
+    st.metric("Total Flood Extent", f"{filtered_df['Extent_km2'].sum():,} km²")
+with col4:
+    st.metric("Max Depth", f"{filtered_df['Depth_m'].max():.1f} m")
 
-# ================== CHOROPLETH MAP (NO JSON NEEDED) ==================
-st.subheader("District-wise Flood Depth Map")
+# ================== MAIN MAP ==================
+st.subheader("🗺️ Flood Impact Map")
 
+# Create the map
 fig = go.Figure()
 
-# Add each district as a separate polygon
-for district_name, boundary in district_boundaries.items():
-    fig.add_trace(go.Scattergeo(
-        lon=boundary["lon"],
-        lat=boundary["lat"],
-        fill="toself",
-        fillcolor=None,  # Will be set by marker.colorscale
-        mode="lines",
-        line=dict(color="black", width=1),
-        name=district_name,
-        text=f"{district_name}<br>Depth: {boundary['depth']}m",
-        hoverinfo="text",
-        marker=dict(
-            color=boundary["depth"],
-            colorscale=color_scale,
-            showscale=True if district_name == list(district_boundaries.keys())[0] else False,
-            cmin=0,
-            cmax=df['depth'].max(),
-            colorbar=dict(
-                title="Depth (m)",
-                thickness=20,
-                len=0.5,
-                x=1.02
-            ) if district_name == list(district_boundaries.keys())[0] else None
-        )
-    ))
-
-# Add district center points with labels
-if show_labels:
-    fig.add_trace(go.Scattergeo(
-        lon=df['lon'],
-        lat=df['lat'],
-        text=df['District'],
-        mode='text',
-        textfont=dict(size=10, color='black', family='Arial'),
-        showlegend=False,
-        hoverinfo='none'
-    ))
-
-fig.update_layout(
-    height=700,
-    margin={"r":50,"t":30,"l":0,"b":0},
-    geo=dict(
-        scope='asia',
-        projection_type='mercator',
-        showland=True,
-        landcolor='rgb(240, 240, 240)',
-        coastlinecolor='gray',
-        showcountries=True,
-        countrycolor='gray',
-        showsubunits=True,
-        subunitcolor='lightgray',
-        center=dict(lat=26.5, lon=68.5),
-        lonaxis_range=[66, 71],
-        lataxis_range=[24, 29]
+# Add scatter mapbox for better visualization
+fig.add_trace(go.Scattermapbox(
+    lat=filtered_df['Latitude'],
+    lon=filtered_df['Longitude'],
+    mode='markers+text',
+    marker=dict(
+        size=filtered_df[size_var] * 2,  # Scale size
+        color=filtered_df[color_var],
+        colorscale='Reds',
+        showscale=True,
+        colorbar=dict(
+            title="Flood Depth (m)" if color_var == "Depth_m" else "Extent (km²)",
+            thickness=20,
+            len=0.5
+        ),
+        cmin=filtered_df[color_var].min(),
+        cmax=filtered_df[color_var].max(),
+        opacity=0.8,
+        line=dict(width=1, color='black')
     ),
-    title="Sindh Districts - Flood Depth"
+    text=filtered_df['District'],
+    textposition="top center",
+    textfont=dict(size=10, color='black'),
+    hoverinfo='text',
+    hovertext=[
+        f"<b>{d}</b><br>" +
+        f"Extent: {e:.0f} km²<br>" +
+        f"Depth: {dp:.1f} m"
+        for d, e, dp in zip(filtered_df['District'], 
+                           filtered_df['Extent_km2'], 
+                           filtered_df['Depth_m'])
+    ]
+))
+
+# Update layout
+fig.update_layout(
+    mapbox=dict(
+        style="open-street-map",
+        center=dict(lat=26.5, lon=68.5),
+        zoom=6
+    ),
+    height=600,
+    margin=dict(l=0, r=0, t=0, b=0),
+    showlegend=False
 )
 
 st.plotly_chart(fig, use_container_width=True)
 
-# ================== BAR CHART ==================
-st.subheader("Flood Depth by District")
-fig_bar = px.bar(
-    df.sort_values('depth', ascending=True),
-    y='District',
-    x='depth',
-    orientation='h',
-    color='depth',
-    color_continuous_scale=color_scale,
-    labels={'depth': 'Depth (m)'},
-    height=500
-)
-fig_bar.update_layout(
-    xaxis_title="Depth (meters)",
-    yaxis_title=""
-)
-st.plotly_chart(fig_bar, use_container_width=True)
+# ================== EXTENT CHART ==================
+st.subheader("📊 Flood Extent by District")
 
-# ================== TABLE ==================
-st.subheader("District Data")
+col_chart1, col_chart2 = st.columns(2)
+
+with col_chart1:
+    # Extent bar chart
+    fig_extent = px.bar(
+        filtered_df.sort_values('Extent_km2', ascending=True),
+        y='District',
+        x='Extent_km2',
+        orientation='h',
+        title="Flood Extent (km²)",
+        color='Extent_km2',
+        color_continuous_scale='Reds',
+        text='Extent_km2'
+    )
+    fig_extent.update_traces(texttemplate='%{text:.0f}', textposition='outside')
+    fig_extent.update_layout(height=400, xaxis_title="Extent (km²)", yaxis_title="")
+    st.plotly_chart(fig_extent, use_container_width=True)
+
+with col_chart2:
+    # Depth bar chart
+    fig_depth = px.bar(
+        filtered_df.sort_values('Depth_m', ascending=True),
+        y='District',
+        x='Depth_m',
+        orientation='h',
+        title="Flood Depth (m)",
+        color='Depth_m',
+        color_continuous_scale='Blues',
+        text='Depth_m'
+    )
+    fig_depth.update_traces(texttemplate='%{text:.1f}', textposition='outside')
+    fig_depth.update_layout(height=400, xaxis_title="Depth (m)", yaxis_title="")
+    st.plotly_chart(fig_depth, use_container_width=True)
+
+# ================== DETAILED TABLE ==================
+st.subheader("📋 District Details")
+
+# Format the dataframe for display
+display_df = filtered_df[['District', 'Extent_km2', 'Depth_m']].copy()
+display_df.columns = ['District', 'Extent (km²)', 'Depth (m)']
+display_df = display_df.sort_values('Extent (km²)', ascending=False)
+
+# Add a severity column
+display_df['Severity'] = pd.cut(
+    display_df['Depth (m)'],
+    bins=[0, 1, 2, 3, 5],
+    labels=['Low', 'Moderate', 'High', 'Severe']
+)
+
 st.dataframe(
-    df[['District', 'depth']].sort_values('depth', ascending=False),
+    display_df,
     column_config={
         "District": "District",
-        "depth": st.column_config.NumberColumn("Depth (m)", format="%.1f")
+        "Extent (km²)": st.column_config.NumberColumn(format="%.0f"),
+        "Depth (m)": st.column_config.NumberColumn(format="%.1f"),
+        "Severity": st.column_config.Column("Risk Level")
     },
-    hide_index=True,
-    use_container_width=True
+    use_container_width=True,
+    hide_index=True
 )
 
-# ================== SUMMARY ==================
-with st.expander("📊 Summary Statistics"):
-    st.write(f"**Total Districts:** {len(df)}")
-    st.write(f"**Average Depth:** {df['depth'].mean():.2f} m")
-    st.write(f"**Median Depth:** {df['depth'].median():.2f} m")
-    st.write(f"**Standard Deviation:** {df['depth'].std():.2f} m")
+# ================== SUMMARY STATISTICS ==================
+with st.expander("📈 Summary Statistics"):
+    col_stat1, col_stat2 = st.columns(2)
+    
+    with col_stat1:
+        st.write("**Extent Statistics (km²)**")
+        st.write(f"Mean: {filtered_df['Extent_km2'].mean():.1f}")
+        st.write(f"Median: {filtered_df['Extent_km2'].median():.1f}")
+        st.write(f"Std Dev: {filtered_df['Extent_km2'].std():.1f}")
+        st.write(f"Total: {filtered_df['Extent_km2'].sum():.0f}")
+    
+    with col_stat2:
+        st.write("**Depth Statistics (m)**")
+        st.write(f"Mean: {filtered_df['Depth_m'].mean():.2f}")
+        st.write(f"Median: {filtered_df['Depth_m'].median():.2f}")
+        st.write(f"Std Dev: {filtered_df['Depth_m'].std():.2f}")
+        st.write(f"Max: {filtered_df['Depth_m'].max():.2f}")
+
+# ================== DOWNLOAD BUTTON ==================
+csv = display_df.to_csv(index=False)
+st.download_button(
+    label="📥 Download Data as CSV",
+    data=csv,
+    file_name="sindh_flood_data.csv",
+    mime="text/csv"
+)
