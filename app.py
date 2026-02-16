@@ -1,35 +1,39 @@
 import streamlit as st
 import pandas as pd
+import json
 import plotly.express as px
 
 st.set_page_config(page_title="Sindh Flood Severity Map", layout="wide")
 
 st.title("🌊 Sindh Flood Severity Dashboard")
-st.markdown("Map styled after severity maps (yellow → red like template image).")
+st.markdown("US-style choropleth map for Sindh districts (yellow → red).")
 
-# ================== DATA ==================
-districts = {
-    "Karachi": {"lat": 24.86, "lon": 67.01, "depth": 2.5},
-    "Hyderabad": {"lat": 25.38, "lon": 68.37, "depth": 1.8},
-    "Sukkur": {"lat": 27.70, "lon": 68.87, "depth": 3.2},
-    "Larkana": {"lat": 27.56, "lon": 68.21, "depth": 1.2},
-    "Dadu": {"lat": 26.73, "lon": 67.78, "depth": 4.0},
-    "Jacobabad": {"lat": 28.28, "lon": 68.44, "depth": 0.8},
-    "Shikarpur": {"lat": 27.96, "lon": 68.65, "depth": 1.5},
-    "Khairpur": {"lat": 27.53, "lon": 68.76, "depth": 1.1},
-    "Nawabshah": {"lat": 26.24, "lon": 68.41, "depth": 2.8},
-    "Mirpurkhas": {"lat": 25.53, "lon": 69.02, "depth": 1.6},
-    "Umerkot": {"lat": 25.36, "lon": 69.74, "depth": 0.9},
-    "Tharparkar": {"lat": 24.89, "lon": 70.20, "depth": 0.5},
-    "Badin": {"lat": 24.66, "lon": 68.84, "depth": 3.5},
-    "Thatta": {"lat": 24.75, "lon": 67.92, "depth": 2.2},
-    "Jamshoro": {"lat": 25.43, "lon": 68.28, "depth": 1.4},
+# ================== LOAD GEOJSON ==================
+with open("data/sindh_districts.geojson") as f:
+    sindh_geojson = json.load(f)
+
+# ================== FLOOD DATA ==================
+data = {
+    "Karachi": 2.5,
+    "Hyderabad": 1.8,
+    "Sukkur": 3.2,
+    "Larkana": 1.2,
+    "Dadu": 4.0,
+    "Jacobabad": 0.8,
+    "Shikarpur": 1.5,
+    "Khairpur": 1.1,
+    "Nawabshah": 2.8,
+    "Mirpurkhas": 1.6,
+    "Umerkot": 0.9,
+    "Tharparkar": 0.5,
+    "Badin": 3.5,
+    "Thatta": 2.2,
+    "Jamshoro": 1.4,
 }
 
-df = pd.DataFrame.from_dict(districts, orient="index").reset_index()
-df.rename(columns={"index": "District"}, inplace=True)
+df = pd.DataFrame(list(data.items()), columns=["District", "Depth"])
 
-# ================== CLASSIFY LIKE TEMPLATE ==================
+# ================== CLASSIFICATION ==================
 def classify(depth):
     if depth < 1:
         return "Low"
@@ -40,7 +44,7 @@ def classify(depth):
     else:
         return "Severe"
 
-df["Severity"] = df["depth"].apply(classify)
+df["Severity"] = df["Depth"].apply(classify)
 
 color_map = {
     "Low": "#ffffb2",
@@ -49,47 +53,38 @@ color_map = {
     "Severe": "#e31a1c"
 }
 
-# ================== MAP ==================
-st.subheader("Flood Severity Map (Template Style)")
-
-fig = px.scatter_geo(
+# ================== CHOROPLETH MAP ==================
+fig = px.choropleth(
     df,
-    lat="lat",
-    lon="lon",
+    geojson=sindh_geojson,
+    locations="District",
+    featureidkey="properties.NAME_2",  # must match GeoJSON field
     color="Severity",
     color_discrete_map=color_map,
     hover_name="District",
-    hover_data={"depth": True},
-    size="depth",
-    size_max=18,
+    hover_data={"Depth": True},
+    projection="natural earth",
+)
+
+fig.update_geos(
+    fitbounds="locations",
+    visible=False
 )
 
 fig.update_layout(
-    geo=dict(
-        scope="asia",
-        center=dict(lat=26.5, lon=68.5),
-        lonaxis_range=[66, 71],
-        lataxis_range=[24, 29],
-        projection_type="natural earth",
-        showcountries=True,
-        countrycolor="black",
-        showsubunits=True,
-        subunitcolor="gray",
-        bgcolor="rgba(0,0,0,0)"
-    ),
     height=700,
-    margin=dict(l=0, r=0, t=30, b=0),
+    margin=dict(l=0, r=0, t=40, b=0),
 )
 
 st.plotly_chart(fig, use_container_width=True)
 
-# ================== BAR ==================
+# ================== BAR CHART ==================
 st.subheader("Flood Depth by District")
 
 fig_bar = px.bar(
-    df.sort_values("depth", ascending=False),
+    df.sort_values("Depth", ascending=False),
     x="District",
-    y="depth",
+    y="Depth",
     color="Severity",
     color_discrete_map=color_map
 )
@@ -98,4 +93,4 @@ st.plotly_chart(fig_bar, use_container_width=True)
 
 # ================== TABLE ==================
 st.subheader("District Flood Data")
-st.dataframe(df[["District", "depth", "Severity"]])
+st.dataframe(df)
