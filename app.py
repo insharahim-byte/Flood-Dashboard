@@ -8,18 +8,27 @@ import json
 st.set_page_config(page_title="Sindh Flood Analysis", layout="wide")
 
 st.title("🌊 Sindh Flood Monitoring")
-st.markdown("District-wise flood extent and depth analysis with administrative boundary")
+st.markdown("District-wise flood extent and depth analysis")
 
 # ================== LOAD SINDH BOUNDARY ==================
 try:
     with open("Sindh.geojson") as f:
         sindh_geo = json.load(f)
     st.sidebar.success("✅ Sindh boundary loaded")
+    
+    # Extract district names from GeoJSON for debugging
+    geojson_districts = []
+    for feature in sindh_geo['features']:
+        if 'properties' in feature and 'name' in feature['properties']:
+            geojson_districts.append(feature['properties']['name'])
+    st.sidebar.write("Districts in GeoJSON:", sorted(geojson_districts)[:5], "...")
+    
 except:
     st.sidebar.error("❌ Sindh.geojson not found")
     sindh_geo = None
 
 # ================== DISTRICT DATA ==================
+# Using actual Sindh district names
 districts_data = {
     "District": ["Karachi", "Hyderabad", "Sukkur", "Larkana", "Dadu", 
                  "Jacobabad", "Shikarpur", "Khairpur", "Nawabshah", 
@@ -58,7 +67,7 @@ st.subheader("🗺️ Flood Map")
 
 fig = go.Figure()
 
-# Add Sindh boundary if available
+# Add Sindh boundary if available (just the outline, no labels)
 if sindh_geo and show_boundary:
     for feature in sindh_geo['features']:
         if feature['geometry']['type'] == 'Polygon':
@@ -87,16 +96,16 @@ if sindh_geo and show_boundary:
                     hoverinfo='none'
                 ))
 
-# Add flood bubbles
+# Add flood bubbles - ONLY our districts, no GeoJSON labels
 fig.add_trace(go.Scattergeo(
     lon=filtered_df['Lon'],
     lat=filtered_df['Lat'],
-    text=filtered_df['District'],
+    text=filtered_df['District'],  # Our district names only
     mode='markers+text',
     marker=dict(
         size=filtered_df['Extent'] / 8,
         color=filtered_df['Depth'],
-        colorscale=[[0, 'lightblue'], [0.25, 'yellow'], [0.5, 'orange'], [0.75, 'red'], [1, 'darkred']],
+        colorscale='Reds',
         showscale=True,
         colorbar=dict(
             title="Depth (m)",
@@ -112,7 +121,7 @@ fig.add_trace(go.Scattergeo(
         cmax=4
     ),
     textposition="top center",
-    textfont=dict(size=10, color='black', family='Arial'),
+    textfont=dict(size=11, color='black', family='Arial Black'),
     hoverinfo='text',
     hovertext=[
         f"<b>{d}</b><br>Extent: {e:.0f} km²<br>Depth: {dp:.1f} m"
@@ -158,7 +167,7 @@ with col1:
         text='Extent'
     )
     fig_extent.update_traces(texttemplate='%{text:.0f}', textposition='outside')
-    fig_extent.update_layout(height=400, xaxis_title="Square Kilometers", yaxis_title="", showlegend=False)
+    fig_extent.update_layout(height=400, xaxis_title="Square Kilometers", yaxis_title="")
     st.plotly_chart(fig_extent, use_container_width=True)
 
 with col2:
@@ -173,7 +182,7 @@ with col2:
         text='Depth'
     )
     fig_depth.update_traces(texttemplate='%{text:.1f}', textposition='outside')
-    fig_depth.update_layout(height=400, xaxis_title="Meters", yaxis_title="", showlegend=False)
+    fig_depth.update_layout(height=400, xaxis_title="Meters", yaxis_title="")
     st.plotly_chart(fig_depth, use_container_width=True)
 
 # ================== DATA TABLE ==================
@@ -207,41 +216,14 @@ st.dataframe(
     hide_index=True
 )
 
-# ================== STATISTICS ==================
-with st.expander("📈 Summary Statistics"):
-    col_stat1, col_stat2 = st.columns(2)
-    
-    with col_stat1:
-        st.write("**🌊 Extent Statistics (km²)**")
-        st.write(f"• Mean: {filtered_df['Extent'].mean():.1f}")
-        st.write(f"• Median: {filtered_df['Extent'].median():.1f}")
-        st.write(f"• Maximum: {filtered_df['Extent'].max():.0f}")
-        st.write(f"• Minimum: {filtered_df['Extent'].min():.0f}")
-        st.write(f"• Total: {filtered_df['Extent'].sum():.0f}")
-    
-    with col_stat2:
-        st.write("**📏 Depth Statistics (m)**")
-        st.write(f"• Mean: {filtered_df['Depth'].mean():.2f}")
-        st.write(f"• Median: {filtered_df['Depth'].median():.2f}")
-        st.write(f"• Maximum: {filtered_df['Depth'].max():.1f}")
-        st.write(f"• Minimum: {filtered_df['Depth'].min():.1f}")
-        st.write(f"• Std Dev: {filtered_df['Depth'].std():.2f}")
-
-# ================== TOP AFFECTED DISTRICTS ==================
-st.subheader("🏆 Most Affected Districts")
-top3 = filtered_df.nlargest(3, 'Depth')[['District', 'Depth', 'Extent']]
-cols = st.columns(3)
-for i, (idx, row) in enumerate(top3.iterrows()):
-    with cols[i]:
-        st.info(f"**#{i+1} {row['District']}**")
-        st.write(f"Depth: {row['Depth']:.1f} m")
-        st.write(f"Extent: {row['Extent']:.0f} km²")
-
-# ================== DOWNLOAD BUTTON ==================
-csv = display_df.to_csv(index=False)
-st.download_button(
-    label="📥 Download Data as CSV",
-    data=csv,
-    file_name="sindh_flood_data.csv",
-    mime="text/csv"
-)
+# ================== DEBUG SECTION ==================
+with st.expander("🔧 Debug Info"):
+    st.write("**Our District Data:**")
+    st.write(sorted(df['District'].tolist()))
+    if sindh_geo:
+        st.write("**GeoJSON District Names (first 10):**")
+        geo_names = []
+        for feature in sindh_geo['features']:
+            if 'properties' in feature and 'name' in feature['properties']:
+                geo_names.append(feature['properties']['name'])
+        st.write(sorted(geo_names)[:10])
