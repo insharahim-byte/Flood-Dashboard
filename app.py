@@ -12,7 +12,7 @@ from branca.colormap import LinearColormap
 st.set_page_config(page_title="Sindh Flood Dashboard", layout="wide")
 
 st.title("🌊 Sindh Flood Dashboard")
-st.write("Real-time flood visualization using Sentinel-1 satellite data")
+st.write("Flood visualization using Sentinel-1 satellite data")
 
 DATA_FOLDER = "data"
 month_to_file = {
@@ -30,10 +30,10 @@ selected_month = st.sidebar.selectbox(
 st.sidebar.subheader("Available Data")
 if os.path.exists(DATA_FOLDER):
     files = os.listdir(DATA_FOLDER)
-    for file in files:
-        if file.endswith('.tif'):
-            file_size = os.path.getsize(os.path.join(DATA_FOLDER, file)) / 1024
-            st.sidebar.write(f"✓ {file} ({file_size:.1f} KB)")
+    tif_files = [f for f in files if f.endswith('.tif')]
+    for file in tif_files:
+        file_size = os.path.getsize(os.path.join(DATA_FOLDER, file)) / 1024
+        st.sidebar.write(f"✓ {file} ({file_size:.1f} KB)")
 else:
     st.sidebar.error("Data folder not found")
 
@@ -57,9 +57,9 @@ def load_raster(month):
 raster_data, bounds = load_raster(selected_month)
 
 sample_data = {
-    "July 2022": {"extent": 1250, "depth": 1.2, "cities": 3},
-    "August 2022": {"extent": 2250, "depth": 2.1, "cities": 5},
-    "September 2022": {"extent": 1650, "depth": 1.5, "cities": 4}
+    "July 2022": {"extent": 1250, "depth": 1.2},
+    "August 2022": {"extent": 2250, "depth": 2.1},
+    "September 2022": {"extent": 1650, "depth": 1.5}
 }
 
 if raster_data is not None:
@@ -106,19 +106,15 @@ if raster_data is not None:
         
         colormap.add_to(m)
         st_folium(m, width=800, height=500)
-    else:
-        st.warning("Raster bounds information unavailable")
 else:
     st.info("Using sample data for visualization")
     current_data = sample_data[selected_month]
     
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns(2)
     with col1:
         st.metric("Flood Extent (km²)", current_data["extent"])
     with col2:
         st.metric("Average Depth (m)", current_data["depth"])
-    with col3:
-        st.metric("Cities Affected", current_data["cities"])
     
     st.subheader("Sample Flood Map")
     center_lat, center_lon = 25.5, 69.0
@@ -163,11 +159,11 @@ with col_chart1:
         color="Flood Extent (pixels)",
         color_continuous_scale="Blues"
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 
 with col_chart2:
     st.subheader("Monthly Statistics")
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    st.dataframe(df, width='stretch', hide_index=True)
 
 with st.expander("System Information"):
     st.write(f"Working Directory: {os.getcwd()}")
