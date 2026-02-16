@@ -87,29 +87,23 @@ if sindh_geo and show_boundary:
                     hoverinfo='none'
                 ))
 
-# Add flood bubbles with CLEAR depth indication
+# Add flood bubbles
 fig.add_trace(go.Scattergeo(
     lon=filtered_df['Lon'],
     lat=filtered_df['Lat'],
     text=filtered_df['District'],
     mode='markers+text',
     marker=dict(
-        size=filtered_df['Extent'] / 6,  # Bigger bubbles
+        size=filtered_df['Extent'] / 6,
         color=filtered_df['Depth'],
-        colorscale=[
-            [0, 'lightblue'],      # Low
-            [0.25, 'yellow'],       # Moderate
-            [0.5, 'orange'],        # High
-            [0.75, 'red'],          # Severe
-            [1, 'darkred']           # Extreme
-        ],
+        colorscale='Reds',
         showscale=True,
         colorbar=dict(
             title="Depth (m)",
             x=1.05,
             len=0.6,
             tickvals=[0, 1, 2, 3, 4],
-            ticktext=['0m - Low', '1m', '2m', '3m', '4m+ Extreme']
+            ticktext=['0m', '1m', '2m', '3m', '4m+']
         ),
         line=dict(width=1, color='black'),
         sizemode='area',
@@ -121,10 +115,7 @@ fig.add_trace(go.Scattergeo(
     textfont=dict(size=11, color='black', family='Arial Black'),
     hoverinfo='text',
     hovertext=[
-        f"<b>{d}</b><br>" +
-        f"📍 Extent: {e:.0f} km²<br>" +
-        f"💧 Depth: {dp:.1f} m<br>" +
-        f"⚡ Risk: {'EXTREME' if dp>=3 else 'SEVERE' if dp>=2 else 'HIGH' if dp>=1 else 'MODERATE' if dp>=0.5 else 'LOW'}"
+        f"<b>{d}</b><br>Extent: {e:.0f} km²<br>Depth: {dp:.1f} m"
         for d, e, dp in zip(filtered_df['District'], filtered_df['Extent'], filtered_df['Depth'])
     ]
 ))
@@ -148,99 +139,80 @@ fig.update_layout(
     margin=dict(l=0, r=70, t=0, b=0)
 )
 
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, use_container_width=False, width=1200)
 
 # ================== DEPTH LEGEND ==================
-st.subheader("💧 Depth Legend")
-depth_cols = st.columns(5)
-with depth_cols[0]:
-    st.markdown("🟦 **0-1m** Low")
-with depth_cols[1]:
-    st.markdown("🟨 **1-2m** Moderate")
-with depth_cols[2]:
-    st.markdown("🟧 **2-3m** High")
-with depth_cols[3]:
-    st.markdown("🟥 **3-4m** Severe")
-with depth_cols[4]:
-    st.markdown("⬛ **4m+** Extreme")
+st.subheader("💧 Depth Categories")
+col1, col2, col3, col4, col5 = st.columns(5)
+with col1:
+    st.info("🟦 **0-1m** Low")
+with col2:
+    st.info("🟩 **1-2m** Moderate")
+with col3:
+    st.warning("🟨 **2-3m** High")
+with col4:
+    st.error("🟧 **3-4m** Severe")
+with col5:
+    st.error("🟥 **4m+** Extreme")
 
 # ================== DEPTH TABLE ==================
-st.subheader("📊 Depth by District")
+st.subheader("📊 Depth Ranking")
 depth_df = filtered_df[['District', 'Depth']].sort_values('Depth', ascending=False)
 depth_df['Risk'] = depth_df['Depth'].apply(lambda x: 
-    '🔴 EXTREME' if x >= 3 else 
-    '🟠 SEVERE' if x >= 2 else 
-    '🟡 HIGH' if x >= 1 else 
-    '🟢 MODERATE')
+    'EXTREME' if x >= 3 else 
+    'SEVERE' if x >= 2 else 
+    'HIGH' if x >= 1 else 
+    'MODERATE')
 
-col_table1, col_table2 = st.columns([2, 1])
-
-with col_table1:
-    st.dataframe(
-        depth_df,
-        column_config={
-            "District": "District",
-            "Depth": st.column_config.NumberColumn("Depth (m)", format="%.1f m"),
-            "Risk": "Risk Level"
-        },
-        hide_index=True,
-        use_container_width=True
-    )
-
-with col_table2:
-    st.metric("Average Depth", f"{filtered_df['Depth'].mean():.2f} m")
-    st.metric("Deepest District", filtered_df.loc[filtered_df['Depth'].idxmax(), 'District'])
+st.dataframe(
+    depth_df,
+    column_config={
+        "District": "District",
+        "Depth": st.column_config.NumberColumn("Depth (m)", format="%.1f"),
+        "Risk": "Risk Level"
+    },
+    hide_index=True,
+    use_container_width=False,
+    width=800
+)
 
 # ================== EXTENT CHART ==================
-st.subheader("📊 Extent by District")
+st.subheader("📊 Flood Extent")
 fig_extent = px.bar(
     filtered_df.sort_values('Extent', ascending=True),
     y='District',
     x='Extent',
     orientation='h',
-    title="Flood Extent (km²)",
     color='Extent',
     color_continuous_scale='Reds',
     text='Extent'
 )
 fig_extent.update_traces(texttemplate='%{text:.0f} km²', textposition='outside')
-fig_extent.update_layout(height=400, xaxis_title="Square Kilometers", yaxis_title="")
-st.plotly_chart(fig_extent, use_container_width=True)
+fig_extent.update_layout(height=400, xaxis_title="km²", yaxis_title="")
+st.plotly_chart(fig_extent, use_container_width=False, width=1000)
 
-# ================== SUMMARY TABLE ==================
-st.subheader("📋 Complete District Summary")
+# ================== SUMMARY ==================
+st.subheader("📋 District Summary")
 summary_df = filtered_df[['District', 'Extent', 'Depth']].copy()
 summary_df.columns = ['District', 'Extent (km²)', 'Depth (m)']
 summary_df = summary_df.sort_values('Depth (m)', ascending=False)
-
-def get_severity(depth):
-    if depth >= 3.0:
-        return "🔴 EXTREME"
-    elif depth >= 2.0:
-        return "🟠 SEVERE"
-    elif depth >= 1.0:
-        return "🟡 HIGH"
-    else:
-        return "🟢 MODERATE"
-
-summary_df['Risk Level'] = summary_df['Depth (m)'].apply(get_severity)
 
 st.dataframe(
     summary_df,
     column_config={
         "District": "District",
-        "Extent (km²)": st.column_config.NumberColumn(format="%.0f km²"),
-        "Depth (m)": st.column_config.NumberColumn(format="%.1f m"),
-        "Risk Level": "Flood Risk"
+        "Extent (km²)": st.column_config.NumberColumn(format="%.0f"),
+        "Depth (m)": st.column_config.NumberColumn(format="%.1f")
     },
     hide_index=True,
-    use_container_width=True
+    use_container_width=False,
+    width=800
 )
 
 # ================== DOWNLOAD ==================
 csv = summary_df.to_csv(index=False)
 st.download_button(
-    label="📥 Download Data",
+    label="📥 Download CSV",
     data=csv,
     file_name="sindh_flood_data.csv",
     mime="text/csv"
