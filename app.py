@@ -2,16 +2,15 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
-import plotly.express as px
 
 st.set_page_config(page_title="Flood Analysis", layout="wide")
 
-st.title("🌊 Sindh Flood Extent & Depth")
-st.write("Interactive flood visualization")
+st.title("🌊 Flood Extent & Depth")
+st.write("Continuous flood gradient map")
 
-# ================== YOUR DATA GOES HERE ==================
-# REPLACE THIS WITH YOUR ACTUAL DISTRICT DATA
-locations = {
+# ================== YOUR DISTRICT DATA ==================
+# This data creates the gradient pattern
+districts = {
     "Karachi": {"lat": 24.86, "lon": 67.01, "extent": 450, "depth": 2.5},
     "Hyderabad": {"lat": 25.38, "lon": 68.37, "extent": 380, "depth": 1.8},
     "Sukkur": {"lat": 27.70, "lon": 68.87, "extent": 520, "depth": 3.2},
@@ -28,129 +27,159 @@ locations = {
     "Thatta": {"lat": 24.75, "lon": 67.92, "extent": 420, "depth": 2.2},
     "Jamshoro": {"lat": 25.43, "lon": 68.28, "extent": 310, "depth": 1.4},
 }
-# ================== END OF YOUR DATA ==================
 
 # Convert to DataFrame
-df = pd.DataFrame.from_dict(locations, orient='index')
+df = pd.DataFrame.from_dict(districts, orient='index')
 df.reset_index(inplace=True)
 df.rename(columns={'index': 'District'}, inplace=True)
 
-# ================== SIDEBAR FILTERS ==================
-st.sidebar.header("Filters")
-min_extent = st.sidebar.slider("Min Flood Extent (km²)", 0, 700, 0)
-min_depth = st.sidebar.slider("Min Flood Depth (m)", 0.0, 5.0, 0.0)
+# ================== CREATE GRADIENT GRID ==================
+# Create a fine grid for smooth gradient
+lat_grid = np.linspace(24, 29, 200)
+lon_grid = np.linspace(66, 71, 200)
+lon_mesh, lat_mesh = np.meshgrid(lon_grid, lat_grid)
 
-# Filter data
-filtered_df = df[(df['extent'] >= min_extent) & (df['depth'] >= min_depth)]
+# Initialize depth grid
+depth_grid = np.zeros_like(lat_mesh)
 
-st.sidebar.write(f"Showing {len(filtered_df)} of {len(df)} districts")
+# For each district, add a Gaussian influence to create smooth gradient
+for _, row in df.iterrows():
+    # Gaussian influence: exp(-distance^2 / spread^2)
+    distance = np.sqrt(((lat_mesh - row['lat'])**2 / 0.3) + ((lon_mesh - row['lon'])**2 / 0.4))
+    influence = np.exp(-distance) * row['depth']
+    depth_grid += influence
+
+# Normalize
+depth_grid = depth_grid / depth_grid.max() * df['depth'].max()
+
+# ================== SIDEBAR ==================
+st.sidebar.header("Visualization Settings")
+opacity = st.sidebar.slider("Map Opacity", 0.3, 1.0, 0.8)
+color_scale = st.sidebar.selectbox(
+    "Color Scheme",
+    ["Viridis", "Plasma", "Inferno", "Magma", "RdBu", "Jet", "Hot"]
+)
 
 # ================== MAIN METRICS ==================
-col1, col2, col3, col4 = st.columns(4)
+col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.metric("Total Districts", len(df))
+    st.metric("Total Area", "~25,000 km²")
 with col2:
-    st.metric("Affected Districts", len(filtered_df))
+    st.metric("Max Depth", f"{df['depth'].max():.1f} m")
 with col3:
-    st.metric("Total Flood Extent", f"{filtered_df['extent'].sum():,.0f} km²")
-with col4:
-    st.metric("Max Depth", f"{filtered_df['depth'].max():.1f} m")
+    st.metric("Avg Depth", f"{df['depth'].mean():.1f} m")
 
-# ================== MAP ==================
-st.subheader("🗺 Flood Map")
+# ================== GRADIENT MAP ==================
+st.subheader("🗺 Flood Depth Gradient Map")
 
-fig_map = go.Figure()
+fig = go.Figure()
 
-fig_map.add_trace(go.Scattergeo(
-    lon=filtered_df['lon'],
-    lat=filtered_df['lat'],
-    text=filtered_df['District'],
-    mode='markers+text',
-    marker=dict(
-        size=filtered_df['extent'] / 8,
-        color=filtered_df['depth'],
-        colorscale='RdYlBu_r',  # Red for deep, blue for shallow
-        showscale=True,
-        colorbar=dict(title="Depth (m)"),
-        line=dict(width=1, color='black'),
-        sizemode='area',
-        sizeref=2.*max(filtered_df['extent'])/(40.**2),
+# Add the gradient heatmap - THIS IS THE KEY PART
+fig.add_trace(go.Contour(
+    z=depth_grid,
+    x=lon_grid,
+    y=lat_grid,
+    colorscale=color_scale,
+    opacity=opacity,
+    contours=dict(
+        coloring='heatmap',
+        showlabels=True,
+        labelfont=dict(size=12, color='white')
     ),
-    textposition="top center",
-    textfont=dict(size=10, color='black'),
-    hovertemplate='<b>%{text}</b><br>' +
-                  'Extent: %{marker.size:.0f} km²<br>' +
-                  'Depth: %{marker.color:.1f} m<br>' +
-                  '<extra></extra>'
+    colorbar=dict(
+        title="Depth (m)",
+        titleside="right",
+        thickness=20,
+        len=0.8
+    ),
+    hovertemplate='Lat: %{y:.2f}<br>Lon: %{x:.2f}<br>Depth: %{z:.1f} m<extra></extra>'
 ))
 
-fig_map.update_layout(
+# Add district boundaries (optional - remove if you want just gradient)
+# You can comment this out if you want NO lines at all
+fig.add_trace(go.Scattergeo(
+    lon=df['lon'],
+    lat=df['lat'],
+    mode='text',
+    text=df['District'],
+    textfont=dict(size=9, color='white', family='Arial'),
+    showlegend=False,
+    hoverinfo='none'
+))
+
+# Update map layout
+fig.update_layout(
     geo=dict(
         scope='asia',
         showland=True,
         landcolor='rgb(240, 240, 240)',
         coastlinecolor='rgb(100, 100, 100)',
         showocean=True,
-        oceancolor='rgb(220, 235, 255)',
+        oceancolor='rgb(230, 240, 255)',
+        showlakes=True,
+        lakecolor='rgb(200, 220, 250)',
+        showrivers=True,
+        rivercolor='rgb(150, 180, 230)',
         center=dict(lat=26.5, lon=68.5),
-        projection_scale=6,
+        projection_scale=7,
         lonaxis_range=[66, 71],
         lataxis_range=[24, 29]
     ),
-    height=550,
+    height=600,
     margin=dict(l=0, r=0, t=0, b=0)
 )
 
-st.plotly_chart(fig_map, use_container_width=True)
+st.plotly_chart(fig, use_container_width=True)
 
-# ================== CHARTS ==================
-col_chart1, col_chart2 = st.columns(2)
+# ================== DEPTH DISTRIBUTION ==================
+st.subheader("📊 Depth Distribution")
 
-with col_chart1:
-    st.subheader("Flood Extent")
-    fig_extent = px.bar(
-        filtered_df.sort_values('extent', ascending=True),
-        x='extent',
-        y='District',
-        orientation='h',
-        color='extent',
-        color_continuous_scale='Reds',
-        labels={'extent': 'Extent (km²)'}
+col_hist, col_stats = st.columns([2, 1])
+
+with col_hist:
+    # Create histogram of depths
+    fig_hist = go.Figure()
+    fig_hist.add_trace(go.Histogram(
+        x=df['depth'],
+        nbinsx=15,
+        marker_color='#1f77b4',
+        opacity=0.8
+    ))
+    fig_hist.update_layout(
+        xaxis_title="Depth (m)",
+        yaxis_title="Number of Districts",
+        height=300,
+        margin=dict(l=40, r=40, t=30, b=40)
     )
-    st.plotly_chart(fig_extent, use_container_width=True)
+    st.plotly_chart(fig_hist, use_container_width=True)
 
-with col_chart2:
-    st.subheader("Flood Depth")
-    fig_depth = px.bar(
-        filtered_df.sort_values('depth', ascending=True),
-        x='depth',
-        y='District',
-        orientation='h',
-        color='depth',
-        color_continuous_scale='Blues',
-        labels={'depth': 'Depth (m)'}
+with col_stats:
+    # Summary statistics
+    st.dataframe(
+        df['depth'].describe().round(2).to_frame(),
+        column_config={"depth": "Statistics"},
+        use_container_width=True
     )
-    st.plotly_chart(fig_depth, use_container_width=True)
 
-# ================== DATA TABLE ==================
-st.subheader("📊 District Details")
+# ================== DISTRICT TABLE ==================
+st.subheader("📋 District Details")
 st.dataframe(
-    filtered_df[['District', 'extent', 'depth']].sort_values('extent', ascending=False),
+    df[['District', 'extent', 'depth']].sort_values('depth', ascending=False),
     column_config={
         "District": "District",
-        "extent": st.column_config.NumberColumn("Flood Extent (km²)", format="%.0f"),
-        "depth": st.column_config.NumberColumn("Flood Depth (m)", format="%.1f")
+        "extent": st.column_config.NumberColumn("Extent (km²)", format="%.0f"),
+        "depth": st.column_config.NumberColumn("Depth (m)", format="%.1f")
     },
     use_container_width=True,
     hide_index=True
 )
 
-# ================== LEGEND ==================
-with st.expander("ℹ️ How to read this map"):
-    st.markdown("""
-    - **Circle size** = Flood extent (larger = more area flooded)
-    - **Circle color** = Flood depth (red = deeper, blue = shallower)
-    - Hover over any point to see exact numbers
-    - Use filters in sidebar to focus on severe flooding
+# ================== COLOR LEGEND ==================
+with st.expander("ℹ️ About this map"):
+    st.markdown(f"""
+    - **Smooth gradient** created from {len(df)} district data points
+    - **Colors**: {color_scale} scheme (darker = deeper water)
+    - **Resolution**: 200x200 grid for smooth appearance
+    - Hover anywhere to see estimated flood depth
     """)
