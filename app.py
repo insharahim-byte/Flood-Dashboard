@@ -5,97 +5,80 @@ import folium
 from streamlit_folium import st_folium
 import plotly.express as px
 
-# =========================
-# PAGE CONFIG
-# =========================
 st.set_page_config(page_title="Sindh Flood Dashboard", layout="wide")
 
 st.title("🌊 Sindh Flood Dashboard (Sentinel-1)")
-st.write("Interactive dashboard using flood maps exported from Google Earth Engine")
+st.write("Flood maps derived from Google Earth Engine (demo project)")
 
-# =========================
-# DATA FILES
-# =========================
+# -------------------
+# FILES
+# -------------------
 RASTER_FILES = {
     "July 2022": "data/flood_2022-07-01.tif",
     "August 2022": "data/flood_2022-08-01.tif",
     "September 2022": "data/flood_2022-09-01.tif"
 }
 
-
-# =========================
-# FUNCTIONS
-# =========================
+# -------------------
+# LOAD RASTER (cached)
+# -------------------
 @st.cache_data
 def load_raster(path):
-    """Load raster and return array + bounds."""
     with rasterio.open(path) as src:
-        array = src.read(1)
+        arr = src.read(1)
         bounds = src.bounds
-    return array, bounds
+    return arr, bounds
 
-
-def compute_flood_pixels(array):
-    """Mask zeros and count flooded pixels."""
-    masked = np.where(array == 0, np.nan, array)
-    return masked, np.nansum(masked)
-
-
-# =========================
+# -------------------
 # SIDEBAR
-# =========================
-st.sidebar.header("🗓 Select Month")
-selected_month = st.sidebar.selectbox("Flood Map", list(RASTER_FILES.keys()))
+# -------------------
+month = st.sidebar.selectbox("Select Month", list(RASTER_FILES.keys()))
 
-# =========================
-# LOAD SELECTED DATA
-# =========================
-raster, bounds = load_raster(RASTER_FILES[selected_month])
-raster, flood_pixels = compute_flood_pixels(raster)
+# -------------------
+# LOAD SELECTED MAP ONLY
+# -------------------
+arr, bounds = load_raster(RASTER_FILES[month])
+arr = np.where(arr == 0, np.nan, arr)
+flood_pixels = int(np.nansum(arr))
 
-# =========================
+# -------------------
 # MAP
-# =========================
-map_center = [25.5, 69]
-m = folium.Map(location=map_center, zoom_start=6, tiles="CartoDB positron")
+# -------------------
+m = folium.Map(location=[26, 69], zoom_start=6, tiles="CartoDB positron")
 
 folium.raster_layers.ImageOverlay(
-    image=raster,
+    image=arr,
     bounds=[[bounds.bottom, bounds.left], [bounds.top, bounds.right]],
     opacity=0.6,
-    colormap=lambda x: (0, 0, 1, x),
 ).add_to(m)
 
-folium.LayerControl().add_to(m)
+# -------------------
+# TIME SERIES (safe)
+# -------------------
+@st.cache_data
+def compute_timeseries(files):
+    months = []
+    areas = []
+    for k, v in files.items():
+        a, _ = load_raster(v)
+        a = np.where(a == 0, np.nan, a)
+        months.append(k)
+        areas.append(np.nansum(a))
+    return months, areas
 
-# =========================
-# TIME SERIES
-# =========================
-months = []
-areas = []
-
-for month, path in RASTER_FILES.items():
-    arr, _ = load_raster(path)
-    arr, area = compute_flood_pixels(arr)
-    months.append(month)
-    areas.append(area)
-
-df = {
-    "Month": months,
-    "Flood Pixels": areas
-}
+months, areas = compute_timeseries(RASTER_FILES)
 
 fig = px.line(
-    df,
-    x="Month",
-    y="Flood Pixels",
+    x=months,
+    y=areas,
     markers=True,
+    labels={"x": "Month", "y": "Flood Pixels"},
     title="Flood Extent Over Time"
 )
 
-# =========================
+# -------------------
 # LAYOUT
-# =========================
+# -------------------
 col1, col2 = st.columns(2)
 
 with col1:
@@ -105,6 +88,6 @@ with col1:
 with col2:
     st.subheader("📈 Flood Trend")
     st.plotly_chart(fig, use_container_width=True)
-    st.metric("Flooded Pixels", int(flood_pixels))
+    st.metric("Flooded Pixels", flood_pixels)
 
-st.caption("Data: Sentinel-1 Flood Classification | Project Demo")
+st.caption("Sentinel-1 Flood Classification | Demo Project")
